@@ -85,11 +85,32 @@ export function App() {
   });
 
   const [paperTape, setPaperTape] = useState<PaperTapeEntry[]>([]);
+  const [serverSynced, setServerSynced] = useState(false);
+
+  // Sync helper to persist progress to server Docker volume (/app/data/user-progress.json)
+  const syncToServer = (payload: {
+    completedChapters?: number[];
+    masteryMap?: Record<string, WordMastery>;
+    gameStats?: GamificationStats;
+  }) => {
+    fetch('/api/progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then((r) => {
+        if (r.ok) setServerSynced(true);
+      })
+      .catch(() => {
+        // Ignore in pure Vite dev mode if /api/progress isn't mounted
+      });
+  };
 
   const saveGameStats = (updater: (prev: GamificationStats) => GamificationStats) => {
     setGameStats((prev) => {
       const next = updater(prev);
       localStorage.setItem('lapwing_gamification_stats', JSON.stringify(next));
+      syncToServer({ gameStats: next });
       return next;
     });
   };
@@ -97,15 +118,46 @@ export function App() {
   useEffect(() => {
     async function loadAllData() {
       try {
-        const [currRes, dictRes] = await Promise.all([
+        const [currRes, dictRes, progRes] = await Promise.all([
           fetch('/data/curriculum.json'),
           fetch('/data/lapwing-base.json'),
+          fetch('/api/progress').catch(() => null),
         ]);
         const currData: CurriculumData = await currRes.json();
         const dictData: Record<string, string> = await dictRes.json();
 
         setCurriculum(currData);
         setForwardDict(dictData);
+
+        if (progRes && progRes.ok) {
+          try {
+            const serverProg = await progRes.json();
+            setServerSynced(true);
+            if (Array.isArray(serverProg.completedChapters) && serverProg.completedChapters.length > 0) {
+              setCompletedChapters(serverProg.completedChapters);
+              localStorage.setItem(
+                'lapwing_completed_chapters',
+                JSON.stringify(serverProg.completedChapters)
+              );
+            }
+            if (serverProg.masteryMap && Object.keys(serverProg.masteryMap).length > 0) {
+              setMasteryMap(serverProg.masteryMap);
+              localStorage.setItem(
+                'lapwing_word_mastery',
+                JSON.stringify(serverProg.masteryMap)
+              );
+            }
+            if (serverProg.gameStats && typeof serverProg.gameStats.xp === 'number') {
+              setGameStats(serverProg.gameStats);
+              localStorage.setItem(
+                'lapwing_gamification_stats',
+                JSON.stringify(serverProg.gameStats)
+              );
+            }
+          } catch {
+            // ignore if dev server returned HTML
+          }
+        }
 
         const ch5 = currData.chapters.find((c) => c.number === 5) || currData.chapters[0];
         if (ch5 && ch5.drills.length > 0) {
@@ -152,6 +204,7 @@ export function App() {
       const isAdding = !prev.includes(chNum);
       const next = isAdding ? [...prev, chNum] : prev.filter((n) => n !== chNum);
       localStorage.setItem('lapwing_completed_chapters', JSON.stringify(next));
+      syncToServer({ completedChapters: next });
 
       if (isAdding) {
         saveGameStats((st) => {
@@ -208,6 +261,7 @@ export function App() {
 
       const next = { ...prev, [word]: updated };
       localStorage.setItem('lapwing_word_mastery', JSON.stringify(next));
+      syncToServer({ masteryMap: next });
       return next;
     });
   };
@@ -401,6 +455,14 @@ export function App() {
               <Heart className="w-3.5 h-3.5 fill-[#8f2917]" />
               <span>{gameStats.hearts}</span>
             </div>
+            {serverSynced && (
+              <>
+                <span className="text-[#cfc6b4]">|</span>
+                <span className="text-[10px] text-[#1e4d3b]" title="Synced to Homelab Volume">
+                  DISK SYNC ✓
+                </span>
+              </>
+            )}
           </div>
         </div>
       </header>

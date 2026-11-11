@@ -3,28 +3,33 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies first for optimal layer caching
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy application source and public data (lapwing-base.json & curriculum.json)
 COPY . .
-
-# Compile TypeScript and build production bundle into /app/dist
 RUN npm run build
 
-# Stage 2: Serve with lightweight Nginx
-FROM nginx:stable-alpine AS runner
+# Stage 2: Lightweight Node runtime serving static build + /api/progress persistence
+FROM node:22-alpine AS runner
 
-# Copy custom Nginx config with Gzip (for 3.3MB lapwing-base.json) & SPA routing
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy compiled static assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+ENV NODE_ENV=production
+ENV PORT=80
+ENV DATA_DIR=/app/data
+
+# Create persistent volume directory
+RUN mkdir -p /app/data
+
+# Copy compiled static frontend and zero-dependency persistence server
+COPY --from=builder /app/dist ./dist
+COPY server.mjs ./server.mjs
+
+VOLUME ["/app/data"]
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:80/ > /dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:80/api/progress > /dev/null || exit 1
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["node", "server.mjs"]

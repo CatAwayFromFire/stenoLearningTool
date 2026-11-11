@@ -1,10 +1,40 @@
 services:
-  steno-trainer:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ghcr.io/owner/steno-trainer:latest
+  lapwing-trainer:
+    # Pull pre-built image from GitHub Container Registry (GHCR):
+    image: ghcr.io/catawayfromfire/stenolearningtool:latest
     container_name: lapwing-steno-trainer
-    ports:
-      - "8080:80"
     restart: unless-stopped
+
+    ports:
+      - "8085:80"
+
+    # Persistent volume so your XP, completed chapters, stars & SRS deck
+    # are saved on your homelab server across container updates and across browsers/devices!
+    volumes:
+      - lapwing_data:/app/data
+
+    environment:
+      - TZ=Europe/Warsaw
+      - DATA_DIR=/app/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/api/progress > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+
+volumes:
+  lapwing_data:
+    driver: local
