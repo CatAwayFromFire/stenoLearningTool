@@ -60,24 +60,30 @@ export const StenoKeyboard: React.FC<StenoKeyboardProps> = ({
         <div className="flex flex-wrap items-center justify-center gap-2 mb-3">
           {strokes.map((st, idx) => {
             const isSelected = idx === activeStrokeIndex;
+            const isCompletedStroke = idx < activeStrokeIndex;
             return (
               <React.Fragment key={idx}>
                 {idx > 0 && <span className="text-[#8c8578] font-mono font-bold">/</span>}
                 <div
-                  className={`px-3 py-1 font-mono text-xs sm:text-sm font-bold border-2 border-[#1a1917] transition-all ${
+                  className={`px-3 py-1 font-mono text-xs sm:text-sm font-bold border-2 border-[#1a1917] transition-all flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-[#efe6d5] text-[#1a1917] shadow-[2px_2px_0_#1a1917]'
+                      ? 'bg-[#efe6d5] text-[#1a1917] shadow-[2px_2px_0_#1a1917] scale-105'
+                      : isCompletedStroke
+                      ? 'bg-[#e3efe9] text-[#1e4d3b] opacity-80'
                       : 'bg-[#fbf8f1] text-[#5a554c]'
                   }`}
                 >
-                  {st.hasNumber && <span className="text-[#6e3b6e]">#</span>}
-                  {st.left && <span className="text-[#1e4d3b]">{st.left}</span>}
-                  {st.vowels && <span className="text-[#9e6608]">{st.vowels}</span>}
-                  {st.hasAsterisk && <span className="text-[#b83a24]">*</span>}
-                  {!st.vowels && !st.hasAsterisk && st.right && (
-                    <span className="text-[#8c8578]">-</span>
-                  )}
-                  {st.right && <span className="text-[#23476e]">{st.right}</span>}
+                  {isCompletedStroke && <span className="text-[#1e4d3b] font-bold">✓</span>}
+                  <span>
+                    {st.hasNumber && <span className="text-[#6e3b6e]">#</span>}
+                    {st.left && <span className="text-[#1e4d3b]">{st.left}</span>}
+                    {st.vowels && <span className="text-[#9e6608]">{st.vowels}</span>}
+                    {st.hasAsterisk && <span className="text-[#b83a24]">*</span>}
+                    {!st.vowels && !st.hasAsterisk && st.right && (
+                      <span className="text-[#8c8578]">-</span>
+                    )}
+                    {st.right && <span className="text-[#23476e]">{st.right}</span>}
+                  </span>
                 </div>
               </React.Fragment>
             );

@@ -338,3 +338,104 @@ export function keysToStenoString(pressed: Set<string>): string {
   out += vRight + rightStr;
   return out;
 }
+
+/**
+ * Simulates Plover's output buffer after the first `k` strokes of an outline
+ * (1 <= k < strokes.length), so we can detect when the user has completed stroke k
+ * of a multi-stroke word and automatically advance the chord hint to stroke k+1.
+ */
+export function computeIntermediateOutputs(
+  outline: string,
+  forwardDict: Record<string, string>
+): Map<string, number> {
+  const strokes = outline
+    .split('/')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const result = new Map<string, number>();
+  if (strokes.length <= 1) return result;
+
+  const cleanTranslation = (raw: string): { text: string; attachPrev: boolean; attachNext: boolean } => {
+    let t = raw.trim();
+    let attachPrev = false;
+    let attachNext = false;
+
+    if (t.startsWith('{') && t.endsWith('}')) {
+      t = t.slice(1, -1);
+    }
+    if (t.startsWith('^')) {
+      attachPrev = true;
+      t = t.slice(1);
+    }
+    if (t.endsWith('^')) {
+      attachNext = true;
+      t = t.slice(0, -1);
+    }
+    t = t.replace(/\{|\}|\^|&/g, '').trim();
+    return { text: t, attachPrev, attachNext };
+  };
+
+  for (let k = 1; k < strokes.length; k++) {
+    // Greedy longest-match translation of strokes[0..k-1] just like Plover's engine
+    let i = 0;
+    let buffer = '';
+    let prevAttachNext = false;
+
+    while (i < k) {
+      let matchedLen = 0;
+      let matchedRaw = '';
+
+      for (let len = k - i; len >= 1; len--) {
+        const subKey = strokes.slice(i, i + len).join('/');
+        const dictVal = forwardDict[subKey];
+        if (dictVal && !dictVal.startsWith('=')) {
+          matchedLen = len;
+          matchedRaw = dictVal;
+          break;
+        }
+      }
+
+      if (matchedLen > 0) {
+        const { text, attachPrev, attachNext } = cleanTranslation(matchedRaw);
+        if (buffer === '') {
+          buffer = text;
+        } else if (prevAttachNext || attachPrev) {
+          buffer += text;
+        } else {
+          buffer += ' ' + text;
+        }
+        prevAttachNext = attachNext;
+        i += matchedLen;
+      } else {
+        // Untranslated raw steno stroke in Plover outputs the raw stroke itself
+        const rawStroke = strokes[i];
+        if (buffer === '') {
+          buffer = rawStroke;
+        } else if (prevAttachNext) {
+          buffer += rawStroke;
+        } else {
+          buffer += ' ' + rawStroke;
+        }
+        prevAttachNext = false;
+        i += 1;
+      }
+    }
+
+    if (buffer) {
+      result.set(buffer.toLowerCase(), k);
+      // Also register the single stroke translation of strokes[k-1] as a fallback
+      const singleVal = forwardDict[strokes[k - 1]];
+      if (singleVal && !singleVal.startsWith('=')) {
+        const { text } = cleanTranslation(singleVal);
+        if (text) {
+          result.set(text.toLowerCase(), k);
+        }
+      }
+      result.set(strokes[k - 1].toLowerCase(), k);
+    }
+  }
+
+  return result;
+}
+

@@ -590,6 +590,7 @@ export function App() {
                   title={activeDrillTitle}
                   subtitle={activeDrillSubtitle}
                   items={activeDrillItems}
+                  forwardDict={forwardDict}
                   reverseDict={reverseDict}
                   hearts={gameStats.hearts}
                   maxHearts={gameStats.maxHearts}

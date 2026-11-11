@@ -14,13 +14,14 @@ import {
 } from 'lucide-react';
 import type { DrillItem, PaperTapeEntry } from '../types/steno';
 import { StenoKeyboard } from './StenoKeyboard';
-import { parseOutline } from '../utils/stenoParser';
+import { parseOutline, computeIntermediateOutputs } from '../utils/stenoParser';
 
 interface PracticeArenaProps {
   drillId?: string;
   title: string;
   subtitle?: string;
   items: DrillItem[];
+  forwardDict: Record<string, string>;
   reverseDict: Map<string, string[]>;
   hearts: number;
   maxHearts: number;
@@ -46,6 +47,7 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
   title,
   subtitle,
   items,
+  forwardDict,
   reverseDict,
   hearts,
   maxHearts,
@@ -108,6 +110,16 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
   }, [currentIndex, drillItems]);
 
   const currentItem = drillItems[currentIndex] || drillItems[0];
+  const strokes = useMemo(
+    () => (currentItem ? parseOutline(currentItem.outline) : []),
+    [currentItem]
+  );
+
+  // Map of intermediate Plover outputs (e.g. "come" -> 1, "come PHREU" -> 2) for multi-stroke outlines
+  const intermediateStrokeMap = useMemo(() => {
+    if (!currentItem) return new Map<string, number>();
+    return computeIntermediateOutputs(currentItem.outline, forwardDict);
+  }, [currentItem, forwardDict]);
 
   // Mechanical Typewriter / Bell sound synthesis
   const playSound = (type: 'correct' | 'combo' | 'error' | 'fanfare') => {
@@ -244,6 +256,7 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
       setInputValue('');
       setHadErrorOnCurrent(false);
       setRecentErrorWord(null);
+      setActiveStrokeIdx(0);
       setWordStart(now);
 
       if (currentIndex + 1 >= drillItems.length) {
@@ -274,7 +287,39 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
       return;
     }
 
-    if (cleanInput.length > 0 && !target.toLowerCase().startsWith(cleanInput.toLowerCase())) {
+    // Check if the current input matches an intermediate stroke of a multi-stroke word!
+    const lowerClean = cleanInput.toLowerCase();
+    const matchedStrokeStep = intermediateStrokeMap.get(lowerClean);
+    if (matchedStrokeStep !== undefined && matchedStrokeStep < strokes.length) {
+      if (activeStrokeIdx !== matchedStrokeStep) {
+        setActiveStrokeIdx(matchedStrokeStep);
+        playSound('correct');
+      }
+      setRecentErrorWord(null);
+      setInputValue(trimmed);
+      return;
+    }
+
+    // Also if the user typed a valid prefix of the target word on a multi-stroke word, advance stroke index proportionally
+    if (cleanInput.length === 0) {
+      setActiveStrokeIdx(0);
+      setRecentErrorWord(null);
+      setInputValue('');
+      return;
+    }
+
+    if (target.toLowerCase().startsWith(lowerClean)) {
+      if (strokes.length > 1) {
+        const estimatedIdx = Math.min(
+          strokes.length - 1,
+          Math.max(1, Math.floor((cleanInput.length / target.length) * strokes.length))
+        );
+        if (estimatedIdx > activeStrokeIdx) {
+          setActiveStrokeIdx(estimatedIdx);
+        }
+      }
+      setRecentErrorWord(null);
+    } else {
       if (!hadErrorOnCurrent) {
         setHadErrorOnCurrent(true);
         setCombo(0);
@@ -282,8 +327,6 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
         onLoseHeart?.();
       }
       setRecentErrorWord(cleanInput);
-    } else {
-      setRecentErrorWord(null);
     }
 
     setInputValue(trimmed);
@@ -305,7 +348,6 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
     hintMode === 'always' ||
     (hintMode === 'on-hesitate' && (hesitated || hadErrorOnCurrent));
 
-  const strokes = currentItem ? parseOutline(currentItem.outline) : [];
   const progressPercent = Math.min(
     100,
     Math.round(
@@ -666,24 +708,34 @@ export const PracticeArena: React.FC<PracticeArenaProps> = ({
             </div>
           )}
 
-          {/* Multi-stroke selector if word has multiple strokes */}
+          {/* Multi-stroke step indicator if word has multiple strokes */}
           {strokes.length > 1 && shouldShowChord && (
-            <div className="flex items-center justify-center gap-2 text-xs font-mono text-[#5a554c]">
-              <span>INSPECT STROKE:</span>
-              {strokes.map((st, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setActiveStrokeIdx(idx)}
-                  className={`px-2.5 py-0.5 font-bold border border-[#1a1917] cursor-pointer ${
-                    activeStrokeIdx === idx
-                      ? 'bg-[#1a1917] text-[#fbf8f1]'
-                      : 'bg-[#fbf8f1] text-[#1a1917]'
-                  }`}
-                >
-                  {idx + 1}: {st.raw}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-mono text-[#5a554c]">
+              <span className="font-bold text-[#1a1917]">
+                STROKE STEP ({activeStrokeIdx + 1} OF {strokes.length}):
+              </span>
+              {strokes.map((st, idx) => {
+                const isDone = idx < activeStrokeIdx;
+                const isCurrent = idx === activeStrokeIdx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveStrokeIdx(idx)}
+                    className={`px-2.5 py-0.5 font-bold border border-[#1a1917] cursor-pointer flex items-center gap-1 ${
+                      isCurrent
+                        ? 'bg-[#1a1917] text-[#fbf8f1] shadow-[2px_2px_0_#8c8578]'
+                        : isDone
+                        ? 'bg-[#e3efe9] text-[#1e4d3b]'
+                        : 'bg-[#fbf8f1] text-[#1a1917]'
+                    }`}
+                  >
+                    <span>
+                      {isDone ? '✓' : `${idx + 1}:`} {st.raw}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
