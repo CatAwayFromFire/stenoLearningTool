@@ -1,0 +1,10 @@
+services:
+  steno-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ghcr.io/owner/steno-trainer:latest
+    container_name: lapwing-steno-trainer
+    ports:
+      - "8080:80"
+    restart: unless-stopped

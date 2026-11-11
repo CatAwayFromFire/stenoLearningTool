@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+:root {
+  --paper-bg: #f4efe6;
+  --paper-card: #fbf8f1;
+  --paper-inset: #ebe4d5;
+  --ink: #1a1917;
+  --ink-muted: #5a554c;
+  --ink-faint: #8c8578;
+  --border-ink: #1a1917;
+  --border-rule: #cfc6b4;
+  --forest: #1e4d3b;
+  --vermilion: #b83a24;
+  --ochre: #b87d14;
+  --cobalt: #23476e;
+}
+
+@layer base {
+  body {
+    background-color: var(--paper-bg);
+    background-image: radial-gradient(rgba(26, 25, 23, 0.055) 1px, transparent 0);
+    background-size: 20px 20px;
+    color: var(--ink);
+    font-family: 'Newsreader', Georgia, 'Times New Roman', serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  code, pre, .font-mono {
+    font-family: 'IBM Plex Mono', 'Courier New', Courier, monospace;
+  }
+}
+
+/* Tactile mechanical card & button utilities */
+.ledger-box {
+  background-color: var(--paper-card);
+  border: 2px solid var(--border-ink);
+  box-shadow: 4px 4px 0px var(--border-ink);
+}
+
+.ledger-box-sm {
+  background-color: var(--paper-card);
+  border: 1.5px solid var(--border-ink);
+  box-shadow: 2px 2px 0px var(--border-ink);
+}
+
+.mech-btn {
+  border: 1.5px solid var(--border-ink);
+  box-shadow: 2px 2px 0px var(--border-ink);
+  transition: transform 80ms ease, box-shadow 80ms ease, background-color 120ms ease;
+}
+
+.mech-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px var(--border-ink);
+}
+
+.mech-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0px 0px 0px var(--border-ink);
+}
+
+/* Physical Bakelite Steno Keycap */
+.steno-keycap {
+  border: 2px solid #1a1917;
+  box-shadow: 0 4px 0 #1a1917, inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 60ms ease, box-shadow 60ms ease;
+}
+
+.steno-keycap-pressed {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #1a1917, inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+/* Custom subtle vintage scrollbars */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: #ebe4d5;
+  border-left: 1px solid #cfc6b4;
+}
+::-webkit-scrollbar-thumb {
+  background: #8c8578;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #1a1917;
+}

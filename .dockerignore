@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.gitignore
+.idea
+.venv
+.agents
+.gemini
+*.log
+README.md
+Dockerfile
+docker-compose.yml
